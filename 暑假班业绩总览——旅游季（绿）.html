@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据上传与业绩日历</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            display: flex;
+            width: 100%;
+            max-width: 1800px;
+            margin: 20px auto;
+            gap: 20px;
+        }
+
+        .upload-container {
+            flex: 0.5;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+        }
+
+        .goals-container {
+            flex: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .goals-section, .calendar-section {
+            width: 100%;
+            background: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .calendar-container-wrapper {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+        }
+
+        .calendar-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: nowrap;
+            width: 100%; /* 修改为100%宽度 */
+            margin: 0 auto;
+        }
+
+        .calendar-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            flex: 1;
+            min-width: 260px;
+            background-color: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .calendar-header {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 8px;
+            padding: 6px;
+            background-color: #e6f7ff;
+            border-radius: 6px;
+            grid-column: 1 / -1;
+            font-size: 16px;
+            color: #1890ff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        .month-selector {
+            position: absolute;
+            right: 10px;
+            font-size: 14px;
+            color: #595959;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .day {
+            padding: 4px;
+            border: 1px solid #e6e6e6;
+            border-radius: 4px;
+            text-align: center;
+            min-height: 36px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background-color: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .day.today {
+            background-color: #fff2e8;
+            border: 2px solid #fa8c16;
+        }
+
+        .day.today .day-header {
+            color: #fa541c;
+            font-weight: bold;
+        }
+
+        .day.today::after {
+            content: '今';
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 16px;
+            height: 16px;
+            background-color: #fa541c;
+            color: white;
+            border-radius: 50%;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .day-header {
+            font-weight: bold;
+            margin-bottom: 2px;
+            color: #4a4a4a;
+            font-size: 12px;
+        }
+
+        .day input {
+            width: 100%;
+            padding: 2px;
+            border: 1px solid #d9d9d9;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 12px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+            -moz-appearance: textfield;
+        }
+
+        .day input::-webkit-outer-spin-button,
+        .day input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .day input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+        }
+
+        .month-selector-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+        }
+
+        .month-selector-input {
+            width: 24px;
+            height: 24px;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .month-selector-icon {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 24px;
+            height: 24px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23595959'%3E%3Cpath d='M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            pointer-events: none;
+        }
+
+        .monthly-performance-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .calendar-group {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .calendar-container {
+                width: 100%;
+            }
+
+            .calendar-header {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .month-selector {
+                position: static;
+                margin-top: 4px;
+            }
+        }
+
+        /* 新增：展开/折叠按钮样式 */
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: #4a90e2;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .toggle-btn .fa-chevron-down {
+            margin-right: 5px;
+            transition: transform 0.3s ease;
+        }
+
+        .toggle-btn.expanded .fa-chevron-down {
+            transform: rotate(180deg);
+        }
+
+        /* 展开后的表格样式 */
+        .table-body-hidden tr:not(:nth-child(-n+10)) {
+            display: none;
+        }
+
+        .table-body-expanded tr {
+            display: table-row;
+        }
+
+        .goals-section, .calendar-section {
+            background: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        /* 新增样式：突出显示实际三月总业绩 */
+        .actual-performance-card {
+            background-color: #e6f7ff;
+            border-left: 4px solid #1890ff;
+        }
+
+        .actual-performance-display {
+            background-color: #f0f7ff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .actual-performance-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .actual-performance-amount {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* 数据预览表格样式 */
+        .preview-table th {
+            background-color: #f5f7fa;
+            color: #5c606a;
+            font-weight: 600;
+            text-align: left;
+            padding: 10px 15px;
+            border-bottom: 1px solid #e6e8eb;
+        }
+
+        .preview-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e6e8eb;
+            color: #333;
+        }
+
+        .preview-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .preview-table tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        .preview-table .date-cell {
+            color: #1890ff;
+            font-weight: 500;
+        }
+
+        .preview-table .value-cell {
+            color: #52c41a;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="font-inter bg-neutral min-h-screen">
+ 
+<!-- 主要内容区域 -->
+<div class="container mx-auto px-4 py-8">
+<!-- 标题栏 -->
+<div class="w-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md z-50" style="box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; justify-content: center; align-items: center; height: 120px; padding: 0 20px;">
+    <h1 class="text-3xl font-bold">暑假班业绩总览——旅游季</h1>
+    <p class="text-lg mt-2">实现目标，来一场说走就走的旅行</p>
+</div>
+
+<!-- 主要内容区域 -->
+    <div class="main-container">
+
+
+        <!-- 数据上传部分 -->
+        <div class="upload-container">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">数据上传工具</h1>
+
+            <!-- 上传区域 -->
+            <div id="drop-area"
+                class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors duration-200 cursor-pointer mb-6">
+                <input type="file" id="file-input" class="hidden" accept=".xlsx,.xls,.csv">
+                <i class="fa-solid fa-file-excel text-5xl text-gray-400 mb-4"></i>
+                <p class="text-gray-500 mb-2">拖放文件到此处，或</p>
+                <button id="browse-btn"
+                    class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors duration-200 shadow-sm">
+                    <i class="fa-solid fa-folder-open mr-1"></i> 浏览文件
+                </button>
+                <p class="text-gray-400 text-sm mt-4">支持 .xlsx, .xls, .csv 格式</p>
+            </div>
+
+            <!-- 上传进度条 -->
+            <div id="upload-progress" class="hidden mb-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-600">上传进度</span>
+                    <span id="progress-percentage" class="text-sm font-medium text-blue-500">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progress-bar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- 文件信息 -->
+            <div id="file-info" class="hidden mb-6">
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center">
+                        <i class="fa-solid fa-file-excel text-blue-500 mr-3 text-xl"></i>
+                        <div>
+                            <p id="file-name" class="font-medium text-gray-900 truncate max-w-xs"></p>
+                            <p id="file-size" class="text-sm text-gray-500"></p>
+                        </div>
+                    </div>
+                    <button id="remove-file"
+                        class="text-gray-400 hover:text-red-500 transition-colors duration-200">
+                        <i class="fa-solid fa-times-circle"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 自动填充按钮 -->
+            <div id="auto-fill-container" class="hidden mb-4">
+                <button id="auto-fill-btn" class="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors duration-200 shadow-sm">
+                    <i class="fa-solid fa-magic mr-1"></i> 自动填充到日历
+                </button>
+            </div>
+
+            <!-- 数据预览 -->
+            <div id="data-preview" class="hidden">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 class="text-lg font-medium mb-3">数据预览</h3>
+                    <button id="togglePreview" class="toggle-btn">
+                        <i class="fa-solid fa-chevron-down"></i> 展开所有
+                    </button>
+                </div>
+                <div class="overflow-x-auto bg-gray-50 rounded-lg">
+                    <table class="preview-table min-w-full divide-y divide-gray-200">
+                        <thead id="table-header"></thead>
+                        <tbody id="table-body" class="table-body-hidden"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 数据导出按钮 -->
+            <div id="export-container" class="hidden mt-4">
+                <button id="export-btn" class="w-full px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors duration-200 shadow-sm">
+                    <i class="fa-solid fa-download mr-1"></i> 导出数据
+                </button>
+            </div>
+
+            <!-- 通知组件 -->
+            <div id="notification"
+                class="fixed top-4 right-4 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0 z-50 flex items-center">
+                <i id="notification-icon" class="mr-2"></i>
+                <span id="notification-message"></span>
+            </div>
+        </div>
+
+        <!-- 目标和日历部分 -->
+        <div class="goals-container">
+            <!-- 目标设置和业绩完成情况 -->
+            <div class="goals-section">
+                <div class="flex flex-col md:flex-row gap-4">
+                    <!-- 左侧目标设置区 -->
+                    <section class="flex-1 bg-white p-6 rounded-xl">
+                        <div class="flex items-center mb-6">
+                            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                                <i class="fa fa-bullseye text-primary"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-dark">目标设置</h2>
+                        </div>
+                        
+                        <div class="actual-performance-display">
+                            <div class="actual-performance-title">暑假班总业绩</div>
+                            <div id="actual-performance-display" class="actual-performance-amount" style="color: blue; font-size: 48px">¥153,000</div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="target-item">
+                                <label for="city-target" class="block text-sm font-medium text-gray-700 mb-1">市内游目标</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">¥</span>
+                                    <input type="number" id="city-target" placeholder="请输入市内游目标（99万元）" 
+                                           class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+                                </div>
+                            </div>
+                            
+                            <div class="target-item">
+                                <label for="province-target" class="block text-sm font-medium text-gray-700 mb-1">省内游目标</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">¥</span>
+                                    <input type="number" id="province-target" placeholder="请输入省内游目标（105万元）" 
+                                           class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+                                </div>
+                            </div>
+                            
+                            <div class="target-item">
+                                <label for="out-province-target" class="block text-sm font-medium text-gray-700 mb-1">省外游目标</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">¥</span>
+                                    <input type="number" id="out-province-target" placeholder="请输入省外游目标（111万元）" 
+                                           class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+                                </div>
+                            </div>
+                            
+                            <div class="target-item">
+                                <label for="beijing-target" class="block text-sm font-medium text-gray-700 mb-1">北京游目标</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">¥</span>
+                                    <input type="number" id="beijing-target" placeholder="请输入北京游目标（120万元）" 
+                                           class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 目标详情 -->
+                        <div class="mt-8">
+                            <h3 class="text-lg font-semibold text-dark mb-3">目标详情</h3>
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <ul class="space-y-2 text-gray-600">
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>1、达到83+16=99万元，市内游；</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>2、达到88+17=105万元，省内游；</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>3、达到93+18=111万元，省外游；</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-green-500 mt-1 mr-2"></i>
+                                        <span>4、达到100+20=120万元，北京游；</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- 右侧图表区 -->
+                    <section class="flex-1 bg-white p-6 rounded-xl">
+                        <div class="flex items-center mb-6">
+                            <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center mr-3">
+                                <i class="fa fa-bar-chart text-secondary"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-dark">业绩完成情况</h2>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-8">
+                            <div class="chart-container flex justify-center items-center p-2">
+                                <div class="relative">
+                                    <svg class="w-36 h-36" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="40" fill="none" stroke="#E5E7EB" stroke-width="10" />
+                                        <circle id="city-progress" class="progress-ring" cx="50" cy="50" r="40" fill="none" stroke="#165DFF" stroke-width="10" 
+                                                stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+                                        <text id="city-percent" x="50" y="50" text-anchor="middle" dominant-baseline="middle" 
+                                              class="text-xl font-bold text-dark">0%</text>
+                                    </svg>
+                                    <div class="text-center mt-2">
+                                        <span class="text-sm text-gray-500">市内游</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-container flex justify-center items-center p-2">
+                                <div class="relative">
+                                    <svg class="w-36 h-36" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="40" fill="none" stroke="#E5E7EB" stroke-width="10" />
+                                        <circle id="province-progress" class="progress-ring" cx="50" cy="50" r="40" fill="none" stroke="#36CFC9" stroke-width="10" 
+                                                stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+                                        <text id="province-percent" x="50" y="50" text-anchor="middle" dominant-baseline="middle" 
+                                              class="text-xl font-bold text-dark">0%</text>
+                                    </svg>
+                                    <div class="text-center mt-2">
+                                        <span class="text-sm text-gray-500">省内游</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-container flex justify-center items-center p-2">
+                                <div class="relative">
+                                    <svg class="w-36 h-36" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="40" fill="none" stroke="#E5E7EB" stroke-width="10" />
+                                        <circle id="out-province-progress" class="progress-ring" cx="50" cy="50" r="40" fill="none" stroke="#FF7D00" stroke-width="10" 
+                                                stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+                                        <text id="out-province-percent" x="50" y="50" text-anchor="middle" dominant-baseline="middle" 
+                                              class="text-xl font-bold text-dark">0%</text>
+                                    </svg>
+                                    <div class="text-center mt-2">
+                                        <span class="text-sm text-gray-500">省外游</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-container flex justify-center items-center p-2">
+                                <div class="relative">
+                                    <svg class="w-36 h-36" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="40" fill="none" stroke="#E5E7EB" stroke-width="10" />
+                                        <circle id="beijing-progress" class="progress-ring" cx="50" cy="50" r="40" fill="none" stroke="#722ED1" stroke-width="10" 
+                                                stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+                                        <text id="beijing-percent" x="50" y="50" text-anchor="middle" dominant-baseline="middle" 
+                                              class="text-xl font-bold text-dark">0%</text>
+                                    </svg>
+                                    <div class="text-center mt-2">
+                                        <span class="text-sm text-gray-500">北京游</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 每月业绩总和柱形图 -->
+                        <div class="mt-8">
+                            <h3 class="text-lg font-semibold text-dark mb-3">每月业绩总和</h3>
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <canvas id="monthly-performance-chart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 业绩日历和折线图 -->
+            <div class="calendar-section">
+                <div style="display: none;">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">业绩日历</h1>
+                </div>
+
+                <input type="month" id="monthInput" style="display: none;">
+
+                <!-- 日历部分 -->
+                <div class="calendar-group" id="calendarGroup">
+                    <!-- 动态生成3个日历 -->
+                </div>
+
+                <!-- 业绩折线图 -->
+                <div class="performance-chart-container">
+                    <h3 class="text-lg font-medium mb-3">每日业绩趋势图</h3>
+                    <div class="chart-container" style="position: relative; height:250px;">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 旅游目标相关代码
+        let actualPerformance = 153000;
+        
+        const defaultTargets = {
+            city: 990000,
+            province: 1050000,
+            outProvince: 1110000,
+            beijing: 1200000
+        };
+        
+        const chartData = [
+            { id: 'city', inputId: 'city-target', progressId: 'city-progress', percentId: 'city-percent', color: '#165DFF' },
+            { id: 'province', inputId: 'province-target', progressId: 'province-progress', percentId: 'province-percent', color: '#36CFC9' },
+            { id: 'out-province', inputId: 'out-province-target', progressId: 'out-province-progress', percentId: 'out-province-percent', color: '#FF7D00' },
+            { id: 'beijing', inputId: 'beijing-target', progressId: 'beijing-progress', percentId: 'beijing-percent', color: '#722ED1' }
+        ];
+        
+        const CIRCUMFERENCE = 251.2;
+        
+        function updateChart(inputId, progressId, percentId) {
+            const input = document.getElementById(inputId);
+            const progressCircle = document.getElementById(progressId);
+            const percentText = document.getElementById(percentId);
+            
+            let percent = 0;
+            if (input.value && !isNaN(input.value) && input.value > 0) {
+                percent = Math.min(actualPerformance / input.value, 1);
+            }
+            
+            const offset = CIRCUMFERENCE - (percent * CIRCUMFERENCE);
+            progressCircle.style.strokeDasharray = CIRCUMFERENCE;
+            progressCircle.style.strokeDashoffset = offset;
+            
+            percentText.textContent = `${(percent * 100).toFixed(1)}%`;
+            
+            if (percent >= 1) {
+                percentText.setAttribute('class', 'text-xl font-bold text-green-600');
+            } else {
+                percentText.setAttribute('class', 'text-xl font-bold text-dark');
+            }
+        }
+        
+        function initCharts() {
+            document.getElementById('actual-performance-display').textContent = `¥${actualPerformance.toLocaleString()}`;
+            
+            document.getElementById('city-target').value = defaultTargets.city;
+            document.getElementById('province-target').value = defaultTargets.province;
+            document.getElementById('out-province-target').value = defaultTargets.outProvince;
+            document.getElementById('beijing-target').value = defaultTargets.beijing;
+            
+            chartData.forEach(item => {
+                updateChart(item.inputId, item.progressId, item.percentId);
+                
+                document.getElementById(item.inputId).addEventListener('input', function() {
+                    updateChart(item.inputId, item.progressId, item.percentId);
+                });
+            });
+            
+            updateMonthlyPerformanceChart();
+        }
+        
+        document.addEventListener('DOMContentLoaded', initCharts);
+
+        // 业绩日历相关代码
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const uploadProgress = document.getElementById('upload-progress');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const fileSize = document.getElementById('file-size');
+        const removeFile = document.getElementById('remove-file');
+        const dataPreview = document.getElementById('data-preview');
+        const tableHeader = document.getElementById('table-header');
+        const tableBody = document.getElementById('table-body');
+        const notification = document.getElementById('notification');
+        const notificationMessage = document.getElementById('notification-message');
+        const notificationIcon = document.getElementById('notification-icon');
+        const autoFillBtn = document.getElementById('auto-fill-btn');
+        const autoFillContainer = document.getElementById('auto-fill-container');
+        const exportBtn = document.getElementById('export-btn');
+        const exportContainer = document.getElementById('export-container');
+        const togglePreviewBtn = document.getElementById('togglePreview');
+
+        let uploadedData = null;
+        let dateColumns = new Set();
+        let valueColumnIndex = -1;
+        let performanceChart = null;
+        let monthlyPerformanceChart = null;
+        let isPreviewExpanded = false;
+
+        const excelBaseDate = new Date(1899, 11, 30);
+
+        function convertNumberToDate(excelNum) {
+            if (excelNum >= 60) {
+                excelNum += 1;
+            }
+            const targetDate = new Date(excelBaseDate.getTime() + excelNum * 24 * 60 * 60 * 1000);
+            return (
+                targetDate.getFullYear() + "-" +
+                String(targetDate.getMonth() + 1).padStart(2, '0') + "-" +
+                String(targetDate.getDate()).padStart(2, '0')
+            );
+        }
+
+        function formatDate(date) {
+            if (!date) return '';
+
+            if (date instanceof Date) {
+                return date.toLocaleDateString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).replace(/\//g, '-');
+            }
+
+            if (!isNaN(date) && date > 0) {
+                return convertNumberToDate(date);
+            }
+
+            return date;
+        }
+
+        function detectDateColumns(data) {
+            const dateColumns = new Set();
+
+            if (!data || data.length < 2) return dateColumns;
+
+            for (let col = 0; col < data[0].length; col++) {
+                let isDateColumn = true;
+                let hasDateValue = false;
+
+                const rowsToCheck = Math.min(data.length, 10);
+                for (let row = 1; row < rowsToCheck; row++) {
+                    const value = data[row][col];
+
+                    if (value === null || value === undefined || value === '') continue;
+
+                    if (Number.isInteger(value) && value > 0) {
+                        hasDateValue = true;
+                    }
+                    else if (typeof value === 'string' && (
+                        /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(value) ||
+                        /^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(value)
+                    )) {
+                        hasDateValue = true;
+                    } else {
+                        isDateColumn = false;
+                        break;
+                    }
+                }
+
+                if (isDateColumn && hasDateValue) {
+                    dateColumns.add(col);
+                }
+            }
+
+            return dateColumns;
+        }
+
+        function detectValueColumn(data) {
+            if (!data || data.length < 2) return -1;
+            
+            const headers = data[0];
+            for (let i = 0; i < headers.length; i++) {
+                const header = headers[i].toString().toLowerCase();
+                if (header.includes('业绩') || header.includes('销售额') || header.includes('金额') || 
+                    header.includes('收入') || header.includes('销量')) {
+                    return i;
+                }
+            }
+            
+            for (let col = 0; col < headers.length; col++) {
+                if (dateColumns.has(col)) continue;
+                
+                let hasNumericValue = false;
+                let allValid = true;
+                
+                const rowsToCheck = Math.min(data.length, 10);
+                for (let row = 1; row < rowsToCheck; row++) {
+                    const value = data[row][col];
+                    
+                    if (value === null || value === undefined || value === '') continue;
+                    
+                    const numericValue = parseFloat(value);
+                    if (!isNaN(numericValue)) {
+                        hasNumericValue = true;
+                    } else {
+                        allValid = false;
+                        break;
+                    }
+                }
+                
+                if (hasNumericValue && allValid) {
+                    return col;
+                }
+            }
+            
+            return -1;
+        }
+
+        browseBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropArea.classList.add('border-blue-500', 'bg-blue-50');
+        }
+
+        function unhighlight() {
+            dropArea.classList.remove('border-blue-500', 'bg-blue-50');
+        }
+
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            uploadProgress.style.display = 'block';
+            simulateProgress();
+
+            const fileTypes = [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel',
+                'text/csv'
+            ];
+
+            if (!fileTypes.includes(file.type) &&
+                !file.name.endsWith('.xlsx') &&
+                !file.name.endsWith('.xls') &&
+                !file.name.endsWith('.csv')) {
+                showNotification('错误', '请上传Excel或CSV文件', 'error');
+                uploadProgress.style.display = 'none';
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                try {
+                    let data = null;
+
+                    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                        const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    }
+                    else if (file.name.endsWith('.csv')) {
+                        const text = e.target.result;
+                        const lines = text.split('\n');
+                        data = lines.map(line => line.split(','));
+                    }
+
+                    if (!data || data.length <= 1) {
+                        showNotification('错误', '文件中没有足够的数据', 'error');
+                        uploadProgress.style.display = 'none';
+                        return;
+                    }
+
+                    uploadedData = data;
+                    
+                    dateColumns = detectDateColumns(data);
+                    
+                    valueColumnIndex = detectValueColumn(data);
+
+                    fileName.textContent = file.name;
+                    fileSize.textContent = formatFileSize(file.size);
+
+                    fileInfo.style.display = 'block';
+                    dataPreview.style.display = 'block';
+                    
+                    autoFillContainer.style.display = 'block';
+                    
+                    exportContainer.style.display = 'block';
+
+                    populateTablePreview(data);
+
+                    uploadProgress.style.display = 'none';
+
+                    showNotification('成功', '文件上传成功', 'success');
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    showNotification('错误', '处理文件时出错', 'error');
+                    uploadProgress.style.display = 'none';
+                }
+            };
+
+            reader.onerror = function () {
+                showNotification('错误', '读取文件时出错', 'error');
+                uploadProgress.style.display = 'none';
+            };
+
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                reader.readAsBinaryString(file);
+            } else {
+                reader.readAsText(file);
+            }
+        }
+
+        function simulateProgress() {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                }
+
+                progressBar.style.width = `${progress}%`;
+                progressPercentage.textContent = `${Math.round(progress)}%`;
+            }, 200);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function populateTablePreview(data) {
+            tableHeader.innerHTML = '';
+            tableBody.innerHTML = '';
+
+            const headerRow = document.createElement('tr');
+            data[0].forEach((header, index) => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.className = 'preview-table th';
+                
+                if (dateColumns.has(index)) {
+                    th.classList.add('date-cell');
+                }
+                if (index === valueColumnIndex) {
+                    th.classList.add('value-cell');
+                }
+                
+                headerRow.appendChild(th);
+            });
+            tableHeader.appendChild(headerRow);
+
+            // 按日期列排序数据（倒序）
+            const dateColumnIndex = Array.from(dateColumns)[0];
+            const sortedData = [...data].sort((a, b) => {
+                const dateA = formatDate(a[dateColumnIndex]);
+                const dateB = formatDate(b[dateColumnIndex]);
+                return new Date(dateB) - new Date(dateA);
+            });
+
+            for (let i = 1; i < sortedData.length; i++) {
+                const row = document.createElement('tr');
+                row.className = 'preview-table tr';
+
+                sortedData[i].forEach((cell, index) => {
+                    const td = document.createElement('td');
+                    td.textContent = dateColumns.has(index) ? formatDate(cell) : cell;
+                    td.className = 'preview-table td';
+                    
+                    if (dateColumns.has(index)) {
+                        td.classList.add('date-cell');
+                    }
+                    if (index === valueColumnIndex) {
+                        td.classList.add('value-cell');
+                    }
+                    
+                    row.appendChild(td);
+                });
+
+                tableBody.appendChild(row);
+            }
+
+            if (data.length > 11) {
+                const moreRow = document.createElement('tr');
+                const moreTd = document.createElement('td');
+                moreTd.colSpan = data[0].length;
+                moreTd.className = 'preview-table td text-center';
+                moreTd.textContent = `... 和 ${data.length - 10} 更多行`;
+                moreRow.appendChild(moreTd);
+                tableBody.appendChild(moreRow);
+            }
+        }
+
+        removeFile.addEventListener('click', () => {
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            dataPreview.style.display = 'none';
+            autoFillContainer.style.display = 'none';
+            exportContainer.style.display = 'none';
+            uploadedData = null;
+            showNotification('信息', '文件已移除', 'info');
+        });
+
+        function showNotification(title, message, type) {
+            notificationMessage.textContent = `${title}: ${message}`;
+
+            if (type === 'success') {
+                notification.className = 'fixed top-4 right-4 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-0 opacity-100 z-50 flex items-center bg-green-50 text-green-800 border-l-4 border-green-400';
+                notificationIcon.className = 'fa-solid fa-check-circle text-green-500 mr-2';
+            } else if (type === 'error') {
+                notification.className = 'fixed top-4 right-4 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-0 opacity-100 z-50 flex items-center bg-red-50 text-red-800 border-l-4 border-red-400';
+                notificationIcon.className = 'fa-solid fa-exclamation-circle text-red-500 mr-2';
+            } else if (type === 'info') {
+                notification.className = 'fixed top-4 right-4 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-0 opacity-100 z-50 flex items-center bg-blue-50 text-blue-800 border-l-4 border-blue-400';
+                notificationIcon.className = 'fa-solid fa-info-circle text-blue-500 mr-2';
+            } else if (type === 'warning') {
+                notification.className = 'fixed top-4 right-4 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-0 opacity-100 z-50 flex items-center bg-yellow-50 text-yellow-800 border-l-4 border-yellow-400';
+                notificationIcon.className = 'fa-solid fa-exclamation-triangle text-yellow-500 mr-2';
+            }
+
+            notification.style.transform = 'translateX(0)';
+            notification.style.opacity = '1';
+
+            setTimeout(() => {
+                notification.style.transform = 'translateX(calc(100% + 1rem))';
+                notification.style.opacity = '0';
+            }, 3000);
+        }
+
+        function autoFillCalendar() {
+            if (!uploadedData) {
+                showNotification('错误', '没有上传的数据', 'error');
+                return;
+            }
+            
+            if (dateColumns.size === 0) {
+                showNotification('错误', '没有检测到日期列', 'error');
+                return;
+            }
+            
+            if (valueColumnIndex === -1) {
+                showNotification('错误', '没有检测到值列', 'error');
+                return;
+            }
+            
+            document.querySelectorAll('.day input').forEach(input => {
+                input.value = '';
+            });
+            
+            const headers = uploadedData[0];
+            const dateColumnIndex = Array.from(dateColumns)[0];
+            
+            let filledCount = 0;
+            
+            const currentMonthStr = document.getElementById('monthInput').value;
+            const currentYear = parseInt(currentMonthStr.split('-')[0]);
+            const currentMonth = parseInt(currentMonthStr.split('-')[1]);
+            
+            for (let i = 1; i < uploadedData.length; i++) {
+                const row = uploadedData[i];
+                const dateValue = row[dateColumnIndex];
+                const value = row[valueColumnIndex];
+                
+                if (!dateValue || !value) continue;
+                
+                const formattedDate = formatDate(dateValue);
+                if (!formattedDate) continue;
+                
+                const [year, month, day] = formattedDate.split('-').map(Number);
+                
+                let monthOffset;
+                if (year === currentYear) {
+                    monthOffset = month - currentMonth;
+                } else {
+                    monthOffset = (year - currentYear) * 12 + (month - currentMonth);
+                }
+                
+                if (monthOffset >= 0 && monthOffset < 3) {
+                    const calendarId = `calendar-${monthOffset + 1}`;
+                    const inputId = `${calendarId}-day-${day}`;
+                    const input = document.getElementById(inputId);
+                    
+                    if (input) {
+                        input.value = value;
+                        filledCount++;
+                    }
+                }
+            }
+            
+            // 保存日历数据到本地存储
+            saveCalendarDataToLocalStorage();
+            
+            updateCharts();
+            
+            showNotification('成功', `已自动填充 ${filledCount} 条数据`, 'success');
+        }
+        
+        autoFillBtn.addEventListener('click', autoFillCalendar);
+        
+        function exportData() {
+            const data = [];
+            const headers = ['日期', '业绩'];
+            
+            data.push(headers);
+            
+            const currentMonthStr = document.getElementById('monthInput').value;
+            const currentYear = parseInt(currentMonthStr.split('-')[0]);
+            const currentMonth = parseInt(currentMonthStr.split('-')[1]);
+            
+            for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                let year = currentYear;
+                let month = currentMonth + monthOffset;
+                
+                if (month > 12) {
+                    year++;
+                    month -= 12;
+                }
+                
+                const calendarId = `calendar-${monthOffset + 1}`;
+                
+                const daysInMonth = new Date(year, month, 0).getDate();
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const inputId = `${calendarId}-day-${day}`;
+                    const input = document.getElementById(inputId);
+                    
+                    if (input && input.value) {
+                        const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        data.push([formattedDate, input.value]);
+                    }
+                }
+            }
+            
+            if (data.length <= 1) {
+                showNotification('警告', '没有数据可导出', 'warning');
+                return;
+            }
+            
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "业绩数据");
+            
+            XLSX.writeFile(wb, `业绩数据_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            
+            showNotification('成功', '数据导出成功', 'success');
+        }
+        
+        exportBtn.addEventListener('click', exportData);
+
+        const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+        const weekNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+
+        function generateCalendar(month, containerId, isFirstCalendar = false) {
+            const calendarContainer = document.getElementById(containerId);
+            const year = month.substring(0, 4);
+            const monthNum = parseInt(month.substring(5, 7)) - 1;
+            const monthName = monthNames[monthNum];
+            const startDate = new Date(year, monthNum, 1);
+            
+            let firstDay = startDate.getDay();
+            if (firstDay === 0) {
+                firstDay = 7;
+            }
+            
+            const endDate = new Date(year, monthNum + 1, 0);
+            const daysInMonth = endDate.getDate();
+            const today = new Date();
+
+            calendarContainer.innerHTML = '';
+
+            const header = document.createElement('div');
+            header.className = 'calendar-header';
+
+            if (isFirstCalendar) {
+                header.innerHTML = `
+                    <span>${monthName}</span>
+                    <div class="month-selector-wrapper">
+                        <input type="month" id="monthSelector" class="month-selector-input" value="${year}-${String(monthNum + 1).padStart(2, '0')}">
+                        <div class="month-selector-icon"></div>
+                    </div>
+                `;
+
+                const monthSelector = header.querySelector('#monthSelector');
+                monthSelector.addEventListener('change', function () {
+                    document.getElementById('monthInput').value = this.value;
+                    document.getElementById('monthInput').dispatchEvent(new Event('change'));
+                });
+            } else {
+                header.textContent = monthName;
+            }
+
+            calendarContainer.appendChild(header);
+
+            for (let i = 1; i <= 7; i++) {
+                const dayOfWeek = document.createElement('div');
+                dayOfWeek.className = 'day';
+                dayOfWeek.innerHTML = `<div class="day-header">${weekNames[i - 1]}</div>`;
+                dayOfWeek.style.fontWeight = 'bold';
+                if (i === 6 || i === 7) {
+                    dayOfWeek.style.color = '#ff4d4f';
+                }
+                calendarContainer.appendChild(dayOfWeek);
+            }
+
+            const emptyDays = (firstDay - 1) % 7;
+            for (let i = 0; i < emptyDays; i++) {
+                const day = document.createElement('div');
+                day.className = 'day';
+                calendarContainer.appendChild(day);
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const day = document.createElement('div');
+                const dayDate = new Date(year, monthNum, i);
+
+                const isToday = dayDate.getDate() === today.getDate() &&
+                    dayDate.getMonth() === today.getMonth() &&
+                    dayDate.getFullYear() === today.getFullYear();
+
+                day.className = isToday ? 'day today' : 'day';
+                day.innerHTML = `
+                    <div class="day-header">${i}</div>
+                    <input type="number" placeholder="0">
+                `;
+                const input = day.querySelector('input');
+                input.id = `${containerId}-day-${i}`;
+                
+                input.addEventListener('input', updateCharts);
+                input.addEventListener('input', saveCalendarDataToLocalStorage);
+
+                const dayOfWeek = (firstDay - 1 + i - 1) % 7 + 1;
+                if (dayOfWeek === 6 || dayOfWeek === 7) {
+                    day.querySelector('.day-header').style.color = '#ff4d4f';
+                }
+
+                calendarContainer.appendChild(day);
+            }
+        }
+
+        function generateThreeCalendars(startMonth) {
+            const calendarGroup = document.getElementById('calendarGroup');
+            calendarGroup.innerHTML = '';
+
+            for (let i = 0; i < 3; i++) {
+                const year = parseInt(startMonth.substring(0, 4));
+                const monthNum = parseInt(startMonth.substring(5, 7)) + i;
+
+                let newYear = year;
+                let newMonth = monthNum;
+
+                if (newMonth > 12) {
+                    newYear++;
+                    newMonth -= 12;
+                }
+
+                const newMonthStr = `${newYear}-${String(newMonth).padStart(2, '0')}`;
+                const container = document.createElement('div');
+                container.className = 'calendar-container';
+                container.id = `calendar-${i + 1}`;
+                calendarGroup.appendChild(container);
+                generateCalendar(newMonthStr, `calendar-${i + 1}`, i === 0);
+            }
+            
+            loadCalendarDataFromLocalStorage();
+            
+            updateCharts();
+        }
+
+        function updateCharts() {
+            updatePerformanceChart();
+            updateMonthlyPerformanceChart();
+        }
+
+        function updatePerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            const currentMonthInput = document.getElementById('monthInput').value;
+            const currentYear = parseInt(currentMonthInput.split('-')[0]);
+            const currentMonth = parseInt(currentMonthInput.split('-')[1]);
+            
+            const allLabels = [];
+            const allData = [];
+            
+            for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                let year = currentYear;
+                let month = currentMonth + monthOffset;
+                
+                if (month > 12) {
+                    year++;
+                    month -= 12;
+                }
+                
+                const calendarId = `calendar-${monthOffset + 1}`;
+                
+                const daysInMonth = new Date(year, month, 0).getDate();
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const inputId = `${calendarId}-day-${day}`;
+                    const input = document.getElementById(inputId);
+                    
+                    allLabels.push(`${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+                    
+                    allData.push(input ? parseFloat(input.value) || 0 : 0);
+                }
+            }
+            
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+            
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: allLabels,
+                    datasets: [{
+                        label: '业绩',
+                        data: allData,
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: true,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '业绩金额'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `业绩: ${context.raw.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        function updateMonthlyPerformanceChart() {
+            const ctx = document.getElementById('monthly-performance-chart').getContext('2d');
+            
+            const currentMonthInput = document.getElementById('monthInput').value;
+            const currentYear = parseInt(currentMonthInput.split('-')[0]);
+            const currentMonth = parseInt(currentMonthInput.split('-')[1]);
+            
+            const monthLabels = [];
+            const monthData = [];
+            
+            for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                let year = currentYear;
+                let month = currentMonth + monthOffset;
+                
+                if (month > 12) {
+                    year++;
+                    month -= 12;
+                }
+                
+                monthLabels.push(`${year}年${String(month).padStart(2, '0')}月`);
+                
+                const calendarId = `calendar-${monthOffset + 1}`;
+                
+                const daysInMonth = new Date(year, month, 0).getDate();
+                
+                let monthlyTotal = 0;
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const inputId = `${calendarId}-day-${day}`;
+                    const input = document.getElementById(inputId);
+                    if (input && input.value) {
+                        monthlyTotal += parseFloat(input.value);
+                    }
+                }
+                
+                monthData.push(monthlyTotal);
+            }
+            
+            // 更新实际三月总业绩
+            actualPerformance = monthData.reduce((a, b) => a + b, 0);
+            document.getElementById('actual-performance-display').textContent = `¥${actualPerformance.toLocaleString()}`;
+            
+            // 更新环形图
+            chartData.forEach(item => {
+                updateChart(item.inputId, item.progressId, item.percentId);
+            });
+            
+            if (monthlyPerformanceChart) {
+                monthlyPerformanceChart.destroy();
+            }
+            
+            monthlyPerformanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: [{
+                        label: '月度业绩',
+                        data: monthData,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `月度业绩: ${context.raw.toLocaleString()}`;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: function(value) {
+                                return value;
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)',
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        document.getElementById('monthInput').addEventListener('change', function() {
+            generateThreeCalendars(this.value);
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = 6;
+            
+            const defaultMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            document.getElementById('monthInput').value = defaultMonth;
+            
+            generateThreeCalendars(defaultMonth);
+        });
+
+        function saveCalendarDataToLocalStorage() {
+            const currentMonthInput = document.getElementById('monthInput').value;
+            const calendarData = {};
+            
+            for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+                let year = parseInt(currentMonthInput.split('-')[0]);
+                let month = parseInt(currentMonthInput.split('-')[1]) + monthOffset;
+                
+                if (month > 12) {
+                    year++;
+                    month -= 12;
+                }
+                
+                const calendarId = `calendar-${monthOffset + 1}`;
+                
+                const daysInMonth = new Date(year, month, 0).getDate();
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const inputId = `${calendarId}-day-${day}`;
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        calendarData[`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`] = input.value;
+                    }
+                }
+            }
+            
+            localStorage.setItem('calendarData', JSON.stringify(calendarData));
+        }
+
+        function loadCalendarDataFromLocalStorage() {
+            const calendarData = JSON.parse(localStorage.getItem('calendarData')) || {};
+            
+            for (const dateKey in calendarData) {
+                const [yearStr, monthStr, dayStr] = dateKey.split('-');
+                const year = parseInt(yearStr);
+                const month = parseInt(monthStr);
+                const day = parseInt(dayStr);
+                
+                const currentMonthInput = document.getElementById('monthInput').value;
+                const currentYear = parseInt(currentMonthInput.split('-')[0]);
+                const currentMonth = parseInt(currentMonthInput.split('-')[1]);
+                
+                let monthOffset = month - currentMonth;
+                if (year > currentYear) {
+                    monthOffset += (year - currentYear) * 12;
+                }
+                
+                if (monthOffset >= 0 && monthOffset < 3) {
+                    const calendarId = `calendar-${monthOffset + 1}`;
+                    const inputId = `${calendarId}-day-${day}`;
+                    const input = document.getElementById(inputId);
+                    
+                    if (input) {
+                        input.value = calendarData[dateKey];
+                    }
+                }
+            }
+        }
+
+        togglePreviewBtn.addEventListener('click', function() {
+            isPreviewExpanded = !isPreviewExpanded;
+            if (isPreviewExpanded) {
+                tableBody.className = 'preview-table tbody table-body-expanded';
+                this.className = 'toggle-btn expanded';
+                this.innerHTML = '<i class="fa-solid fa-chevron-up"></i> 收起';
+            } else {
+                tableBody.className = 'preview-table tbody table-body-hidden';
+                this.className = 'toggle-btn';
+                this.innerHTML = '<i class="fa-solid fa-chevron-down"></i> 展开所有';
+            }
+        });
+
+        function persistCalendarData() {
+            document.querySelectorAll('.calendar-container input').forEach(input => {
+                const calendarId = input.id.split('-')[0];
+                const day = input.id.split('-')[2];
+                const year = document.getElementById('monthInput').value.split('-')[0];
+                const month = parseInt(document.getElementById('monthInput').value.split('-')[1]) + parseInt(calendarId.split('-')[1]) - 1;
+                
+                if (month > 12) {
+                    const newYear = parseInt(year) + 1;
+                    const newMonth = month - 12;
+                    localStorage.setItem(`${newYear}-${newMonth}-${day}`, input.value);
+                } else {
+                    localStorage.setItem(`${year}-${month}-${day}`, input.value);
+                }
+            });
+        }
+        
+        document.querySelectorAll('.calendar-container').forEach(container => {
+            container.addEventListener('input', persistCalendarData);
+        });
+    </script>
+</body>
+</html>
